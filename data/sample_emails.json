@@ -1,0 +1,30 @@
+[
+  {
+    "id": 1,
+    "sender": "professor@univ.edu",
+    "subject": "Project submission deadline",
+    "body": "Hello Rayan, could you please confirm the submission deadline for the project?",
+    "timestamp": "2026-01-06T09:00:00"
+  },
+  {
+    "id": 2,
+    "sender": "hr@company.com",
+    "subject": "Interview invitation",
+    "body": "We would like to invite you for an interview tomorrow at 10am.",
+    "timestamp": "2026-01-06T10:30:00"
+  },
+  {
+    "id": 3,
+    "sender": "newsletter@randomsite.com",
+    "subject": "Big discounts just for you",
+    "body": "Unsubscribe anytime. Limited offer!",
+    "timestamp": "2026-01-06T11:00:00"
+  },
+  {
+    "id": 4,
+    "sender": "manager@company.com",
+    "subject": "Why haven’t you replied?",
+    "body": "THIS IS URGENT. I EXPECT A RESPONSE ASAP!!!",
+    "timestamp": "2026-01-06T11:15:00"
+  }
+]
