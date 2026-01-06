@@ -2,7 +2,7 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
 # Telegram bot token from BotFather
-TOKEN = "8387861948:AAHf6istUi0iDZm98hM-4Sea5abufv90kgc"
+TOKEN = "YOUR_TELEGRAM_BOT_TOKEN_HERE"
 
 # Global variable to store pending drafts
 pending_drafts = {}
