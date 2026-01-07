@@ -1,0 +1,12 @@
+{
+  "103": {
+    "draft": "Hello Team Lead,\n\nThank you for the message. I am available at the proposed time. Please let me know if that works for you.\n\nBest,\nRayan",
+    "email": {
+      "id": 103,
+      "sender": "Team Lead",
+      "subject": "Meeting confirmation",
+      "body": "Hi Rayan, just confirming our meeting scheduled tomorrow at 11 AM. Please confirm if that still works for you.",
+      "timestamp": "2026-01-06 11:15"
+    }
+  }
+}
