@@ -16,6 +16,20 @@ def load_drafts():
     except FileNotFoundError:
         return {}
 
+def save_drafts(drafts):
+    """Save drafts dictionary to JSON file"""
+    with open("data/pending_drafts.json", "w", encoding="utf-8") as f:
+        json.dump(drafts, f, indent=2, ensure_ascii=False)
+
+def remove_draft(email_id):
+    """Remove a specific draft from the JSON file"""
+    drafts = load_drafts()
+    if email_id in drafts:
+        del drafts[email_id]
+        save_drafts(drafts)
+        return True
+    return False
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🤖 Bot online!\n\n"
@@ -61,41 +75,86 @@ async def send_draft(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_response(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle user responses like send, modify, ignore"""
-    text = update.message.text.lower().strip()
+    text = update.message.text.strip()
+    text_lower = text.lower()
+    
+    # Check if user is awaiting modification input
+    if context.user_data.get('awaiting_modification'):
+        email_id = context.user_data.get('current_draft_id')
+        if email_id:
+            # Load drafts and update the specific draft
+            drafts = load_drafts()
+            if email_id in drafts:
+                drafts[email_id]['draft'] = text
+                save_drafts(drafts)
+                
+                # Clear modification state
+                context.user_data['awaiting_modification'] = False
+                
+                # Show updated draft for re-approval
+                await update.message.reply_text(
+                    f"✅ Draft updated for Email ID {email_id}:\n\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n"
+                    f"{text}\n"
+                    f"━━━━━━━━━━━━━━━━━━━━\n\n"
+                    "Reply with:\n"
+                    "• 'send' - to approve and send\n"
+                    "• 'modify' - to request changes\n"
+                    "• 'ignore' - to skip this email"
+                )
+            else:
+                await update.message.reply_text(f"❌ Draft {email_id} no longer exists.")
+                context.user_data['awaiting_modification'] = False
+                context.user_data['current_draft_id'] = None
+        return
     
     # Check if user has a current draft context
     current_draft_id = context.user_data.get('current_draft_id')
     
-    if text in ['send', 'approve', 'yes']:
+    if text_lower in ['send', 'approve', 'yes']:
         if current_draft_id:
-            await update.message.reply_text(
-                f"✅ Draft for email {current_draft_id} approved!\n\n"
-                "(In production, this would send the email)"
-            )
+            # Remove draft from pending queue
+            if remove_draft(current_draft_id):
+                await update.message.reply_text(
+                    f"✅ Email sent!\n\n"
+                    f"Draft for email {current_draft_id} has been approved and sent.\n"
+                    "(Simulated mode - in production, this would send via Gmail)"
+                )
+            else:
+                await update.message.reply_text(f"❌ Draft {current_draft_id} not found.")
+            
             context.user_data['current_draft_id'] = None
         else:
             await update.message.reply_text("No active draft. Use /draft <email_id> first.")
     
-    elif text in ['modify', 'edit', 'change']:
+    elif text_lower in ['modify', 'edit', 'change']:
         if current_draft_id:
+            # Set state to await modification
+            context.user_data['awaiting_modification'] = True
             await update.message.reply_text(
-                f"✏️ Modification requested for email {current_draft_id}\n\n"
-                "(In production, this would allow editing)"
+                f"✏️ Okay, send your modified draft:\n\n"
+                "Type your new draft text and send it."
             )
-            context.user_data['current_draft_id'] = None
         else:
             await update.message.reply_text("No active draft. Use /draft <email_id> first.")
     
-    elif text in ['ignore', 'skip', 'no']:
+    elif text_lower in ['ignore', 'skip', 'no']:
         if current_draft_id:
-            await update.message.reply_text(f"🚫 Draft for email {current_draft_id} ignored.")
+            # Remove draft from pending queue
+            if remove_draft(current_draft_id):
+                await update.message.reply_text(
+                    f"🚫 Draft for email {current_draft_id} ignored and removed from queue."
+                )
+            else:
+                await update.message.reply_text(f"❌ Draft {current_draft_id} not found.")
+            
             context.user_data['current_draft_id'] = None
         else:
             await update.message.reply_text("No active draft. Use /draft <email_id> first.")
     
     else:
         # Check if user is trying to use draft without slash
-        if text.startswith('draft '):
+        if text_lower.startswith('draft '):
             await update.message.reply_text(
                 "💡 Tip: Use /draft <email_id> (with a slash)\n\n"
                 "Example: /draft 1"
