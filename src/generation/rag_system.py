@@ -1,286 +1,121 @@
 """
-RAG System (Retrieval-Augmented Generation)
+RAG System Module
 
-Retrieves relevant context from knowledge base to augment LLM generation.
-Uses vector embeddings for semantic search.
+Retrieval Augmented Generation using FAISS and Sentence Transformers.
+Retrieves relevant context (FAQs, templates, past emails) to augment generation.
 """
 
-from typing import Dict, List, Optional, Tuple
-import json
 import os
+import logging
+import json
+from typing import List, Dict, Any
+from src.config_loader import config
 
+try:
+    import numpy as np
+    HAS_NUMPY = True
+except ImportError:
+    HAS_NUMPY = False
+
+try:
+    import faiss
+    from sentence_transformers import SentenceTransformer
+    HAS_RAG_DEPS = True
+except ImportError:
+    HAS_RAG_DEPS = False
+
+logger = logging.getLogger(__name__)
 
 class RAGSystem:
-    """
-    Retrieval-Augmented Generation system.
+    """RAG system for knowledge retrieval."""
     
-    Uses vector database (FAISS) for semantic search to retrieve
-    relevant context for email generation.
-    """
-    
-    def __init__(
-        self,
-        knowledge_base_path: Optional[str] = None,
-        embedding_model: str = "all-MiniLM-L6-v2",
-        top_k: int = 3
-    ):
-        """
-        Initialize RAG system.
-        
-        Args:
-            knowledge_base_path: Path to knowledge base directory
-            embedding_model: Sentence transformer model name
-            top_k: Number of documents to retrieve
-        """
-        self.knowledge_base_path = knowledge_base_path
-        self.embedding_model_name = embedding_model
-        self.top_k = top_k
-        
+    def __init__(self):
         self.index = None
         self.documents = []
-        self.embeddings_model = None
+        self.model = None
         
-        # Load knowledge base if path provided
-        if knowledge_base_path and os.path.exists(knowledge_base_path):
-            self._load_knowledge_base(knowledge_base_path)
-    
-    def retrieve(
-        self,
-        query: str,
-        intent: Optional[str] = None,
-        top_k: Optional[int] = None
-    ) -> List[Dict[str, any]]:
+        if HAS_RAG_DEPS and config:
+            try:
+                model_name = config.models["embeddings"].name
+                logger.info(f"Loading Embedding Model: {model_name}")
+                self.model = SentenceTransformer(model_name)
+                
+                # Initialize FAISS index
+                # 384 dimensions for all-MiniLM-L6-v2
+                self.dimension = 384 
+                self.index = faiss.IndexFlatL2(self.dimension)
+                
+                # Load KB if exists
+                self._load_knowledge_base()
+                
+            except Exception as e:
+                logger.warning(f"Failed to init RAG: {e}")
+
+    def retrieve(self, query: str, k: int = 3) -> List[str]:
         """
-        Retrieve relevant documents for query.
+        Retrieve top-k relevant documents.
         
         Args:
-            query: Query text (email content)
-            intent: Optional intent filter
-            top_k: Number of documents to retrieve (overrides default)
+            query: Search query (email text)
+            k: Number of results
             
         Returns:
-            List of retrieved documents with scores
+            List of document text
         """
-        if not self.index or not self.documents:
+        if not self.model or not self.index or self.index.ntotal == 0:
             return []
-        
-        k = top_k or self.top_k
-        
+            
         try:
             # Encode query
-            query_embedding = self._encode(query)
+            query_vector = self.model.encode([query])
             
-            # Search index
-            distances, indices = self.index.search(query_embedding, k)
+            # Search
+            distances, indices = self.index.search(query_vector, k)
             
-            # Get documents
             results = []
-            for i, idx in enumerate(indices[0]):
-                if idx < len(self.documents):
-                    doc = self.documents[idx]
+            for idx in indices[0]:
+                if idx != -1 and idx < len(self.documents):
+                    results.append(self.documents[idx])
                     
-                    # Filter by intent if specified
-                    if intent and doc.get("intent") != intent:
-                        continue
-                    
-                    results.append({
-                        "content": doc.get("content", ""),
-                        "metadata": doc.get("metadata", {}),
-                        "score": float(distances[0][i]),
-                        "intent": doc.get("intent", ""),
-                    })
-            
             return results
-        
+            
         except Exception as e:
-            print(f"Retrieval error: {e}")
+            logger.error(f"Retrieval error: {e}")
             return []
-    
-    def augment_prompt(
-        self,
-        email: Dict[str, str],
-        intent: str,
-        top_k: int = 3
-    ) -> str:
-        """
-        Retrieve context and format for LLM prompt.
-        
-        Args:
-            email: Email dictionary
-            intent: Classified intent
-            top_k: Number of documents to retrieve
-            
-        Returns:
-            Formatted context string
-        """
-        # Build query from email
-        query = f"{email.get('subject', '')} {email.get('body', '')}"
-        
-        # Retrieve documents
-        docs = self.retrieve(query, intent=intent, top_k=top_k)
-        
-        if not docs:
-            return ""
-        
-        # Format context
-        context_parts = []
-        for i, doc in enumerate(docs, 1):
-            context_parts.append(f"{i}. {doc['content']}")
-        
-        return "\n".join(context_parts)
-    
-    def add_document(
-        self,
-        content: str,
-        intent: str = "general",
-        metadata: Optional[Dict] = None
-    ):
-        """
-        Add document to knowledge base.
-        
-        Args:
-            content: Document content
-            intent: Associated intent
-            metadata: Additional metadata
-        """
-        doc = {
-            "content": content,
-            "intent": intent,
-            "metadata": metadata or {}
-        }
-        
-        self.documents.append(doc)
-        
-        # Re-index if index exists
-        if self.index is not None:
-            self._rebuild_index()
-    
-    def _load_knowledge_base(self, path: str):
-        """
-        Load knowledge base from directory.
-        
-        Args:
-            path: Path to knowledge base directory
-        """
-        try:
-            # Load documents from JSON files
-            for filename in os.listdir(path):
-                if filename.endswith('.json'):
-                    filepath = os.path.join(path, filename)
-                    with open(filepath, 'r', encoding='utf-8') as f:
-                        data = json.load(f)
-                        
-                        if isinstance(data, list):
-                            self.documents.extend(data)
-                        elif isinstance(data, dict):
-                            self.documents.append(data)
-            
-            print(f"Loaded {len(self.documents)} documents from knowledge base")
-            
-            # Build index
-            if self.documents:
-                self._build_index()
-        
-        except Exception as e:
-            print(f"Failed to load knowledge base: {e}")
-    
-    def _build_index(self):
-        """Build FAISS index from documents."""
-        try:
-            import faiss
-            from sentence_transformers import SentenceTransformer
-            import numpy as np
-            
-            # Load embedding model
-            if self.embeddings_model is None:
-                self.embeddings_model = SentenceTransformer(self.embedding_model_name)
-            
-            # Encode all documents
-            contents = [doc.get("content", "") for doc in self.documents]
-            embeddings = self.embeddings_model.encode(contents, show_progress_bar=False)
-            
-            # Create FAISS index
-            dimension = embeddings.shape[1]
-            self.index = faiss.IndexFlatL2(dimension)
-            self.index.add(np.array(embeddings).astype('float32'))
-            
-            print(f"Built FAISS index with {len(self.documents)} documents")
-        
-        except ImportError:
-            print("FAISS or sentence-transformers not installed. RAG disabled.")
-            print("Install with: pip install faiss-cpu sentence-transformers")
-        except Exception as e:
-            print(f"Failed to build index: {e}")
-    
-    def _rebuild_index(self):
-        """Rebuild index after adding documents."""
-        self.index = None
-        self._build_index()
-    
-    def _encode(self, text: str):
-        """
-        Encode text to embedding.
-        
-        Args:
-            text: Input text
-            
-        Returns:
-            Embedding array
-        """
-        import numpy as np
-        
-        if self.embeddings_model is None:
-            from sentence_transformers import SentenceTransformer
-            self.embeddings_model = SentenceTransformer(self.embedding_model_name)
-        
-        embedding = self.embeddings_model.encode([text], show_progress_bar=False)
-        return np.array(embedding).astype('float32')
-    
-    def save_knowledge_base(self, path: str):
-        """
-        Save knowledge base to file.
-        
-        Args:
-            path: Output file path
-        """
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        
-        with open(path, 'w', encoding='utf-8') as f:
-            json.dump(self.documents, f, indent=2, ensure_ascii=False)
-        
-        print(f"Saved knowledge base to {path}")
 
+    def add_document(self, text: str):
+        """Add document to index."""
+        if not self.model:
+            return
+            
+        try:
+            vector = self.model.encode([text])
+            if self.index is None:
+                self.index = faiss.IndexFlatL2(vector.shape[1])
+                
+            self.index.add(vector)
+            self.documents.append(text)
+            
+        except Exception as e:
+            logger.error(f"Indexing error: {e}")
+
+    def _load_knowledge_base(self):
+        """Load initial KB from data file."""
+        kb_path = os.path.join(config.paths.data_dir, "knowledge_base.json")
+        if os.path.exists(kb_path):
+            try:
+                with open(kb_path, "r") as f:
+                    docs = json.load(f)
+                    for doc in docs:
+                         self.add_document(doc["content"])
+                logger.info(f"Loaded {len(docs)} documents into RAG index")
+            except Exception as e:
+                logger.error(f"Failed to load KB: {e}")
 
 # Example usage
 if __name__ == "__main__":
-    # Create sample knowledge base
     rag = RAGSystem()
+    rag.add_document("The university policy for extensions requires a 24h notice.")
+    rag.add_document("Office hours are Mon-Wed 10-12.")
     
-    # Add sample documents
-    rag.add_document(
-        content="Office hours are Monday and Wednesday 2-4 PM in Room 301.",
-        intent="academic",
-        metadata={"type": "policy"}
-    )
-    
-    rag.add_document(
-        content="Assignment extensions require approval from the professor at least 48 hours before the deadline.",
-        intent="academic",
-        metadata={"type": "policy"}
-    )
-    
-    rag.add_document(
-        content="Interview slots are available Monday-Friday 9 AM - 5 PM. Please confirm your availability.",
-        intent="internship",
-        metadata={"type": "template"}
-    )
-    
-    # Test retrieval
-    test_email = {
-        "subject": "Office hours question",
-        "body": "When are your office hours this week?"
-    }
-    
-    context = rag.augment_prompt(test_email, intent="academic")
-    print("Retrieved Context:")
-    print(context)
+    print(rag.retrieve("Can I get an extension?"))

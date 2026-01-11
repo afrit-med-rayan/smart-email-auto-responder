@@ -1,12 +1,252 @@
 {
+  "1": {
+    "draft": "Dear Professor,\nThank you for your email regarding Project submission deadline.\nI have received your message and will respond with the requested information as soon as possible.\nI have received your message and will get back to you shortly with the requested information.\nI understand the deadline is , and I will ensure to respond in time.\nBest regards,\nRayan",
+    "email": {
+      "id": 1,
+      "sender": "professor@univ.edu",
+      "subject": "Project submission deadline",
+      "body": "Hello Rayan, could you please confirm the submission deadline for the project?",
+      "timestamp": "2026-01-06T09:00:00"
+    },
+    "metadata": {
+      "email_id": 1,
+      "subject": "Project submission deadline",
+      "classification": {
+        "intent": {
+          "intent": "academic",
+          "confidence": 0.7499999999999999,
+          "method": "rules",
+          "scores": {
+            "academic": 0.7499999999999999,
+            "internship": 0.0,
+            "meeting": 0.0,
+            "support": 0.0,
+            "spam": 0.0,
+            "general": 0.25
+          }
+        },
+        "urgency": {
+          "urgency": "high",
+          "confidence": 0.75,
+          "reasoning": "High urgency keywords found"
+        },
+        "sentiment": {
+          "sentiment": "neutral",
+          "confidence": 0.5,
+          "tone": "neutral",
+          "escalate": false
+        }
+      },
+      "draft": {
+        "draft": "Dear Professor,\nThank you for your email regarding Project submission deadline.\nI have received your message and will respond with the requested information as soon as possible.\nI have received your message and will get back to you shortly with the requested information.\nI understand the deadline is , and I will ensure to respond in time.\nBest regards,\nRayan",
+        "method": "template",
+        "confidence": 0.9,
+        "template_used": "academic",
+        "word_count": 60
+      },
+      "action": "DRAFT_REVIEW",
+      "reason": "Success",
+      "status": "success"
+    }
+  },
+  "2": {
+    "draft": "Hello Hr,\nThank you for reaching out regarding Interview invitation.\nI appreciate the opportunity and am very interested in this position. I am available for an interview and will confirm my availability shortly.\nThank you for considering my application. I am very interested in this opportunity and look forward to hearing from you.\nI appreciate the opportunity and will respond with the requested information shortly.\nKind regards,\nRayan",
+    "email": {
+      "id": 2,
+      "sender": "hr@company.com",
+      "subject": "Interview invitation",
+      "body": "We would like to invite you for an interview tomorrow at 10am.",
+      "timestamp": "2026-01-06T10:30:00"
+    },
+    "metadata": {
+      "email_id": 2,
+      "subject": "Interview invitation",
+      "classification": {
+        "intent": {
+          "intent": "internship",
+          "confidence": 0.8,
+          "method": "rules",
+          "scores": {
+            "academic": 0.0,
+            "internship": 0.8,
+            "meeting": 0.0,
+            "support": 0.0,
+            "spam": 0.0,
+            "general": 0.2
+          }
+        },
+        "urgency": {
+          "urgency": "high",
+          "confidence": 0.75,
+          "reasoning": "High urgency keywords found"
+        },
+        "sentiment": {
+          "sentiment": "neutral",
+          "confidence": 0.5,
+          "tone": "neutral",
+          "escalate": false
+        }
+      },
+      "draft": {
+        "draft": "Hello Hr,\nThank you for reaching out regarding Interview invitation.\nI appreciate the opportunity and am very interested in this position. I am available for an interview and will confirm my availability shortly.\nThank you for considering my application. I am very interested in this opportunity and look forward to hearing from you.\nI appreciate the opportunity and will respond with the requested information shortly.\nKind regards,\nRayan",
+        "method": "template",
+        "confidence": 0.9,
+        "template_used": "internship",
+        "word_count": 68
+      },
+      "action": "DRAFT_REVIEW",
+      "reason": "Success",
+      "status": "success"
+    }
+  },
+  "101": {
+    "draft": "Dear Prof Ahmed,\nThank you for your email regarding Course assignment submission.\nI have received your message and will respond with the requested information as soon as possible.\nI have received your message and will get back to you shortly with the requested information.\nI understand the deadline is , and I will ensure to respond in time.\nBest regards,\nRayan",
+    "email": {
+      "id": 101,
+      "sender": "Prof. Ahmed",
+      "subject": "Course assignment submission",
+      "body": "Hello Rayan, I hope you are doing well. Please confirm that you have received the assignment submission for the data mining course. Thank you.",
+      "timestamp": "2026-01-06 09:00"
+    },
+    "metadata": {
+      "email_id": 101,
+      "subject": "Course assignment submission",
+      "classification": {
+        "intent": {
+          "intent": "academic",
+          "confidence": 0.888888888888889,
+          "method": "rules",
+          "scores": {
+            "academic": 0.888888888888889,
+            "internship": 0.0,
+            "meeting": 0.0,
+            "support": 0.0,
+            "spam": 0.0,
+            "general": 0.11111111111111112
+          }
+        },
+        "urgency": {
+          "urgency": "low",
+          "confidence": 0.6,
+          "reasoning": "No urgency indicators"
+        },
+        "sentiment": {
+          "sentiment": "positive",
+          "confidence": 0.6,
+          "tone": "friendly",
+          "escalate": false
+        }
+      },
+      "draft": {
+        "draft": "Dear Prof Ahmed,\nThank you for your email regarding Course assignment submission.\nI have received your message and will respond with the requested information as soon as possible.\nI have received your message and will get back to you shortly with the requested information.\nI understand the deadline is , and I will ensure to respond in time.\nBest regards,\nRayan",
+        "method": "template",
+        "confidence": 0.9,
+        "template_used": "academic",
+        "word_count": 61
+      },
+      "action": "DRAFT_REVIEW",
+      "reason": "Success",
+      "status": "success"
+    }
+  },
+  "102": {
+    "draft": "Hello Hr Team,\nThank you for reaching out regarding Internship interview follow-up.\nI appreciate the opportunity and am very interested in this position. I am available for an interview and will confirm my availability shortly.\nThank you for considering my application. I am very interested in this opportunity and look forward to hearing from you.\nI appreciate the opportunity and will respond with the requested information shortly.\nKind regards,\nRayan",
+    "email": {
+      "id": 102,
+      "sender": "HR Team",
+      "subject": "Internship interview follow-up",
+      "body": "Hello, we would like to follow up regarding your internship interview. Please let us know your availability this week. Best regards.",
+      "timestamp": "2026-01-06 10:30"
+    },
+    "metadata": {
+      "email_id": 102,
+      "subject": "Internship interview follow-up",
+      "classification": {
+        "intent": {
+          "intent": "internship",
+          "confidence": 0.8,
+          "method": "rules",
+          "scores": {
+            "academic": 0.0,
+            "internship": 0.8,
+            "meeting": 0.0,
+            "support": 0.0,
+            "spam": 0.0,
+            "general": 0.2
+          }
+        },
+        "urgency": {
+          "urgency": "high",
+          "confidence": 0.75,
+          "reasoning": "High urgency keywords found"
+        },
+        "sentiment": {
+          "sentiment": "neutral",
+          "confidence": 0.5,
+          "tone": "neutral",
+          "escalate": false
+        }
+      },
+      "draft": {
+        "draft": "Hello Hr Team,\nThank you for reaching out regarding Internship interview follow-up.\nI appreciate the opportunity and am very interested in this position. I am available for an interview and will confirm my availability shortly.\nThank you for considering my application. I am very interested in this opportunity and look forward to hearing from you.\nI appreciate the opportunity and will respond with the requested information shortly.\nKind regards,\nRayan",
+        "method": "template",
+        "confidence": 0.9,
+        "template_used": "internship",
+        "word_count": 70
+      },
+      "action": "DRAFT_REVIEW",
+      "reason": "Success",
+      "status": "success"
+    }
+  },
   "103": {
-    "draft": "Hello Team Lead,\n\nThank you for the message. I am available at the proposed time. Please let me know if that works for you.\n\nBest,\nRayan",
+    "draft": "Hello Team Lead,\nThank you for your message about Meeting confirmation.\nI am available at the proposed time and look forward to our meeting.\nI would be happy to meet. Please let me know what times work best for you, and I will confirm my availability.\nBest,\nRayan",
     "email": {
       "id": 103,
       "sender": "Team Lead",
       "subject": "Meeting confirmation",
       "body": "Hi Rayan, just confirming our meeting scheduled tomorrow at 11 AM. Please confirm if that still works for you.",
       "timestamp": "2026-01-06 11:15"
+    },
+    "metadata": {
+      "email_id": 103,
+      "subject": "Meeting confirmation",
+      "classification": {
+        "intent": {
+          "intent": "meeting",
+          "confidence": 0.8,
+          "method": "rules",
+          "scores": {
+            "academic": 0.0,
+            "internship": 0.0,
+            "meeting": 0.8,
+            "support": 0.0,
+            "spam": 0.0,
+            "general": 0.2
+          }
+        },
+        "urgency": {
+          "urgency": "high",
+          "confidence": 0.75,
+          "reasoning": "High urgency keywords found"
+        },
+        "sentiment": {
+          "sentiment": "neutral",
+          "confidence": 0.5,
+          "tone": "neutral",
+          "escalate": false
+        }
+      },
+      "draft": {
+        "draft": "Hello Team Lead,\nThank you for your message about Meeting confirmation.\nI am available at the proposed time and look forward to our meeting.\nI would be happy to meet. Please let me know what times work best for you, and I will confirm my availability.\nBest,\nRayan",
+        "method": "template",
+        "confidence": 0.9,
+        "template_used": "meeting",
+        "word_count": 48
+      },
+      "action": "DRAFT_REVIEW",
+      "reason": "Success",
+      "status": "success"
     }
   }
 }

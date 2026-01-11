@@ -1,184 +1,161 @@
 """
-Sentiment Analyzer
+Enhanced Sentiment Analyzer
 
-Analyzes email sentiment and tone to detect aggressive or negative emails.
+Analyzes email sentiment and tone using DistilBERT model.
+Detects aggressive or negative emails for safety filtering.
 """
 
 import re
-from typing import Dict, List
+import logging
+from typing import Dict, List, Optional, Any
+from src.config_loader import config
 
+try:
+    import torch
+    from torch.nn import functional as F
+    HAS_TORCH = True
+except ImportError:
+    HAS_TORCH = False
+
+# Optional transformers import
+try:
+    from transformers import AutoTokenizer, AutoModelForSequenceClassification
+    HAS_TRANSFORMERS = True
+except ImportError:
+    HAS_TRANSFORMERS = False
+
+logger = logging.getLogger(__name__)
 
 class SentimentAnalyzer:
     """
     Analyze email sentiment and tone.
     
-    Sentiment classes:
-    - positive: Friendly, appreciative, enthusiastic
-    - neutral: Professional, matter-of-fact
-    - negative: Disappointed, frustrated, concerned
-    - aggressive: Hostile, demanding, threatening
+    Classes: positive, negative, neutral
+    Safety: Detects aggressive tone
     """
     
-    def __init__(self):
-        # Sentiment keywords
-        self.positive_keywords = [
-            "thank", "thanks", "appreciate", "grateful", "great",
-            "excellent", "wonderful", "happy", "pleased", "love",
-            "perfect", "amazing", "fantastic", "good"
-        ]
+    def __init__(self, model_path: Optional[str] = None):
+        self.device = None
+        if HAS_TORCH:
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            
+        self.model = None
+        self.tokenizer = None
         
-        self.negative_keywords = [
-            "unfortunately", "problem", "issue", "concern", "disappointed",
-            "frustrated", "unhappy", "dissatisfied", "bad", "poor",
-            "wrong", "mistake", "error", "fail"
-        ]
-        
+        # Load model if configured
+        if HAS_TRANSFORMERS and HAS_TORCH and config:
+            try:
+                model_name = model_path or config.models["sentiment_analyzer"].name
+                self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+                self.model = AutoModelForSequenceClassification.from_pretrained(model_name)
+                self.model.to(self.device)
+                self.model.eval()
+            except Exception as e:
+                logger.warning(f"Failed to load Sentiment model: {e}")
+                
+        # Aggressive keywords (Safety Net)
         self.aggressive_keywords = [
-            "demand", "immediately", "unacceptable", "terrible", "worst",
-            "hate", "angry", "furious", "ridiculous", "incompetent",
-            "pathetic", "disgrace", "lawsuit", "lawyer", "sue"
+            r'\b(demand|immediately|unacceptable|terrible|worst|hate|sue|lawyer|idiot|stupid)\b',
+            r'\b(fuck|shit|damn|hell)\b'
         ]
-        
-        # Tone indicators
-        self.formal_indicators = [
-            "dear", "sincerely", "regards", "respectfully",
-            "kindly", "please", "would you", "could you"
-        ]
-        
-        self.informal_indicators = [
-            "hey", "hi", "thanks", "cheers", "cool",
-            "yeah", "yep", "nope", "gonna", "wanna"
-        ]
-    
-    def analyze(self, email: Dict[str, str]) -> Dict[str, any]:
+
+    def analyze(self, email: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Analyze email sentiment and tone.
+        Analyze email sentiment.
         
         Args:
-            email: Preprocessed email dictionary
+            email: Preprocessed email
             
         Returns:
-            Sentiment analysis result
+            Sentiment result
         """
-        text = (email.get("subject", "") + " " + email.get("body", "")).lower()
+        text = email.get("combined_text", "")
         
-        # Check for aggressive tone (highest priority - safety)
-        aggressive_matches = [kw for kw in self.aggressive_keywords if kw in text]
-        if aggressive_matches:
-            return {
+        # 1. Safety Check: Aggression
+        if self._check_aggression(text):
+             return {
                 "sentiment": "negative",
                 "tone": "aggressive",
-                "confidence": 0.90,
-                "reasoning": f"Contains aggressive language: {', '.join(aggressive_matches)}",
-                "matched_keywords": aggressive_matches,
-                "escalate": True  # Always escalate aggressive emails
-            }
-        
-        # Check for excessive capitalization (shouting)
-        caps_ratio = sum(1 for c in email.get("body", "") if c.isupper()) / max(len(email.get("body", "")), 1)
-        if caps_ratio > 0.3:
-            return {
-                "sentiment": "negative",
-                "tone": "aggressive",
-                "confidence": 0.85,
-                "reasoning": "Excessive capitalization detected (shouting)",
-                "matched_keywords": [],
-                "escalate": True
-            }
-        
-        # Check for excessive exclamation marks
-        exclamation_count = text.count('!')
-        if exclamation_count > 3:
-            return {
-                "sentiment": "negative",
-                "tone": "aggressive",
-                "confidence": 0.75,
-                "reasoning": f"Excessive exclamation marks ({exclamation_count})",
-                "matched_keywords": [],
-                "escalate": True
-            }
-        
-        # Count sentiment keywords
-        positive_count = sum(1 for kw in self.positive_keywords if kw in text)
-        negative_count = sum(1 for kw in self.negative_keywords if kw in text)
-        
-        # Determine sentiment
-        if positive_count > negative_count and positive_count > 0:
-            return {
-                "sentiment": "positive",
-                "tone": self._detect_tone(text),
-                "confidence": min(0.70 + (positive_count * 0.05), 0.95),
-                "reasoning": f"Contains {positive_count} positive keywords",
-                "matched_keywords": [kw for kw in self.positive_keywords if kw in text],
-                "escalate": False
-            }
-        elif negative_count > positive_count and negative_count > 0:
-            return {
-                "sentiment": "negative",
-                "tone": self._detect_tone(text),
-                "confidence": min(0.70 + (negative_count * 0.05), 0.90),
-                "reasoning": f"Contains {negative_count} negative keywords",
-                "matched_keywords": [kw for kw in self.negative_keywords if kw in text],
-                "escalate": False
-            }
-        else:
-            return {
-                "sentiment": "neutral",
-                "tone": self._detect_tone(text),
-                "confidence": 0.75,
-                "reasoning": "Balanced or no strong sentiment indicators",
-                "matched_keywords": [],
-                "escalate": False
-            }
-    
-    def _detect_tone(self, text: str) -> str:
-        """
-        Detect formality of tone.
-        
-        Args:
-            text: Email text (lowercase)
+                "confidence": 0.95,
+                "escalate": True,
+                "reasoning": "Aggressive language detected"
+             }
+
+        # 2. ML Sentiment Analysis
+        if self.model and self.tokenizer:
+            return self._analyze_with_model(text)
             
-        Returns:
-            Tone: "formal", "informal", or "neutral"
-        """
-        formal_count = sum(1 for indicator in self.formal_indicators if indicator in text)
-        informal_count = sum(1 for indicator in self.informal_indicators if indicator in text)
+        # 3. Fallback Rule-based (simplified)
+        return self._analyze_with_rules(text)
+
+    def _check_aggression(self, text: str) -> bool:
+        """Check for aggressive keywords or shouting."""
+        # Keywords
+        for pattern in self.aggressive_keywords:
+            if re.search(pattern, text, re.IGNORECASE):
+                return True
+                
+        # Shouting (Caps > 50% and length > 20 chars)
+        if len(text) > 20:
+            caps_count = sum(1 for c in text if c.isupper())
+            if caps_count / len(text) > 0.5:
+                return True
+                
+        return False
+
+    def _analyze_with_model(self, text: str) -> Dict[str, Any]:
+        """Analyze using BERT model."""
+        try:
+            inputs = self.tokenizer(
+                text, 
+                padding=True, 
+                truncation=True, 
+                max_length=512, 
+                return_tensors="pt"
+            ).to(self.device)
+            
+            with torch.no_grad():
+                outputs = self.model(**inputs)
+                probs = F.softmax(outputs.logits, dim=-1)
+            
+            # Assuming binary (negative=0, positive=1) for SST-2
+            # Adjust if using different model
+            neg_score = probs[0][0].item()
+            pos_score = probs[0][1].item()
+            
+            if pos_score > 0.6:
+                sentiment = "positive"
+                confidence = pos_score
+            elif neg_score > 0.6:
+                sentiment = "negative"
+                confidence = neg_score
+            else:
+                sentiment = "neutral"
+                confidence = max(pos_score, neg_score)
+                
+            return {
+                "sentiment": sentiment,
+                "tone": "neutral", # Default, refine later with rules
+                "confidence": float(confidence),
+                "escalate": False,
+                "scores": {"pos": pos_score, "neg": neg_score}
+            }
+        except Exception as e:
+            logger.error(f"Sentiment model error: {e}")
+            return self._analyze_with_rules(text)
+
+    def _analyze_with_rules(self, text: str) -> Dict[str, Any]:
+        """Simple rule-fallback."""
+        pos_words = ["thank", "great", "good", "happy", "appreciate"]
+        neg_words = ["bad", "wrong", "issue", "problem", "missed"]
         
-        if formal_count > informal_count:
-            return "formal"
-        elif informal_count > formal_count:
-            return "informal"
-        else:
-            return "neutral"
-
-
-# Example usage
-if __name__ == "__main__":
-    analyzer = SentimentAnalyzer()
-    
-    test_emails = [
-        {
-            "subject": "Thank you!",
-            "body": "Thank you so much for your help. I really appreciate it!"
-        },
-        {
-            "subject": "Issue with order",
-            "body": "Unfortunately, there's a problem with my order. Can you help?"
-        },
-        {
-            "subject": "UNACCEPTABLE SERVICE",
-            "body": "This is COMPLETELY UNACCEPTABLE! I demand a refund immediately!"
-        },
-        {
-            "subject": "Meeting tomorrow",
-            "body": "Just confirming our meeting tomorrow at 2 PM."
-        }
-    ]
-    
-    for email in test_emails:
-        result = analyzer.analyze(email)
-        print(f"\nEmail: {email['subject']}")
-        print(f"Sentiment: {result['sentiment']}, Tone: {result['tone']}")
-        print(f"Confidence: {result['confidence']:.2f}")
-        print(f"Escalate: {result['escalate']}")
-        print(f"Reasoning: {result['reasoning']}")
+        text_lower = text.lower()
+        pos_count = sum(1 for w in pos_words if w in text_lower)
+        neg_count = sum(1 for w in neg_words if w in text_lower)
+        
+        if pos_count > neg_count:
+            return {"sentiment": "positive", "confidence": 0.6, "tone": "friendly", "escalate": False}
+        elif neg_count > pos_count:
+            return {"sentiment": "negative", "confidence": 0.6, "tone": "concerned", "escalate": False}
+            
+        return {"sentiment": "neutral", "confidence": 0.5, "tone": "neutral", "escalate": False}

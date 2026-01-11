@@ -1,14 +1,32 @@
 """
 Enhanced Intent Classifier
 
-ML-based intent classification using BERT/RoBERTa.
+ML-based intent classification using DistilBERT.
 Supports both rule-based fallback and model-based classification.
 """
 
 import re
-from typing import Dict, List, Optional
-import numpy as np
+import logging
+from typing import Dict, List, Optional, Any, Tuple
+from src.config_loader import config
 
+try:
+    import torch
+    import numpy as np
+    from torch.nn import functional as F
+    HAS_TORCH = True
+except ImportError:
+    HAS_TORCH = False
+
+# Optional transformers import
+try:
+    from transformers import AutoTokenizer, AutoModelForSequenceClassification
+    from torch.nn import functional as F
+    HAS_TRANSFORMERS = True
+except ImportError:
+    HAS_TRANSFORMERS = False
+
+logger = logging.getLogger(__name__)
 
 class IntentClassifier:
     """
@@ -17,42 +35,53 @@ class IntentClassifier:
     Intent classes:
     - academic: Emails from professors, TAs, academic departments
     - internship: Job applications, interviews, HR communications
-    - meeting: Meeting scheduling, calendar invitations
-    - support: Help requests, customer support
-    - complaint: Complaints, negative feedback
-    - spam: Marketing, newsletters, unsolicited emails
-    - general: Everything else
+    - meeting: Scheduling requests, calendar invites
+    - support: Help requests, issues, complaints
+    - spam: Promotional, unwanted
+    - general: Routine correspondence
     """
     
     def __init__(self, model_path: Optional[str] = None, use_rules: bool = True):
-        """
-        Initialize classifier.
-        
-        Args:
-            model_path: Path to trained BERT model (optional)
-            use_rules: Whether to use rule-based fallback
-        """
-        self.model_path = model_path
         self.use_rules = use_rules
+        self.device = None
+        if HAS_TORCH:
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
         self.model = None
         self.tokenizer = None
         
-        # Intent labels
-        self.labels = [
-            "academic",
-            "internship", 
-            "meeting",
-            "support",
-            "complaint",
-            "spam",
-            "general"
-        ]
-        
-        # Load model if path provided
-        if model_path:
-            self._load_model(model_path)
-    
-    def classify(self, email: Dict[str, str]) -> Dict[str, any]:
+        # Load model if configured
+        if HAS_TRANSFORMERS and HAS_TORCH and config:
+            try:
+                model_name = model_path or config.models["intent_classifier"].name
+                self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+                self.model = AutoModelForSequenceClassification.from_pretrained(model_name)
+                self.model.to(self.device)
+                self.model.eval()
+                
+                # Load label mapping (mock for now, would be in config or model config)
+                self.id2label = {
+                    0: "academic",
+                    1: "internship",
+                    2: "meeting",
+                    3: "support",
+                    4: "spam",
+                    5: "general"
+                }
+            except Exception as e:
+                logger.warning(f"Failed to load ML model: {e}")
+                self.model = None
+
+        # Rule-based keywords (fallback)
+        self.rules = {
+            "academic": [r'\b(professor|assignment|exam|grade|course|class|homework|lab|thesis|syllabus)\b'],
+            "internship": [r'\b(interview|position|application|resume|cv|hiring|job|recruiter|candidacy)\b'],
+            "meeting": [r'\b(meeting|schedule|calendar|available|appointment|sync|zoom|teams)\b'],
+            "support": [r'\b(help|issue|problem|error|bug|fail|broken|access|account)\b'],
+            "spam": [r'\b(unsubscribe|discount|offer|winner|prize|click here|limited time)\b']
+        }
+
+    def classify(self, email: Dict[str, Any]) -> Dict[str, Any]:
         """
         Classify email intent.
         
@@ -62,199 +91,109 @@ class IntentClassifier:
         Returns:
             Classification result with intent and confidence
         """
-        # Try ML model first
-        if self.model is not None:
-            return self._classify_with_model(email)
+        # 1. Try ML Model
+        if self.model and self.tokenizer:
+            ml_result = self._classify_with_model(email)
+            # If high confidence, return
+            if ml_result["confidence"] > 0.6:
+                return ml_result
         
-        # Fallback to rule-based
+        # 2. Fallback to Rules
         if self.use_rules:
             return self._classify_with_rules(email)
-        
-        # Default
+            
+        # 3. Default
         return {
             "intent": "general",
             "confidence": 0.5,
-            "method": "default"
+            "method": "default",
+            "scores": {}
         }
-    
-    def _classify_with_model(self, email: Dict[str, str]) -> Dict[str, any]:
-        """
-        Classify using BERT model.
-        
-        Args:
-            email: Preprocessed email
+
+    def _classify_with_model(self, email: Dict[str, Any]) -> Dict[str, Any]:
+        """Classify using BERT model."""
+        text = email.get("combined_text", "")
+        if not text:
+             return {"intent": "general", "confidence": 0.0, "method": "model_failed"}
+
+        try:
+            inputs = self.tokenizer(
+                text, 
+                padding=True, 
+                truncation=True, 
+                max_length=512, 
+                return_tensors="pt"
+            ).to(self.device)
             
-        Returns:
-            Classification result
-        """
-        # TODO: Implement when model is trained
-        # For now, use rule-based
-        return self._classify_with_rules(email)
-    
-    def _classify_with_rules(self, email: Dict[str, str]) -> Dict[str, any]:
-        """
-        Rule-based classification (fallback).
-        
-        Args:
-            email: Preprocessed email
+            with torch.no_grad():
+                outputs = self.model(**inputs)
+                probs = F.softmax(outputs.logits, dim=-1)
+                
+            confidence, predicted_class = torch.max(probs, dim=-1)
+            intent = self.id2label.get(predicted_class.item(), "general")
             
-        Returns:
-            Classification result
-        """
-        text = (email.get("subject", "") + " " + email.get("body", "")).lower()
+            return {
+                "intent": intent,
+                "confidence": float(confidence),
+                "method": "model",
+                "id": predicted_class.item(),
+                "scores": {self.id2label[i]: float(probs[0][i]) for i in self.id2label}
+            }
+        except Exception as e:
+            logger.error(f"Model ID error: {e}")
+            return {"intent": "general", "confidence": 0.0, "method": "model_error"}
+
+    def _classify_with_rules(self, email: Dict[str, Any]) -> Dict[str, Any]:
+        """Rule-based classification fallback."""
+        text = email.get("combined_text", "").lower()
         sender = email.get("sender", "").lower()
         
-        # Spam detection (highest priority)
-        spam_keywords = [
-            "unsubscribe", "discount", "limited offer", "click here",
-            "winner", "prize", "free", "congratulations", "act now"
-        ]
-        if any(keyword in text for keyword in spam_keywords):
-            return {
-                "intent": "spam",
-                "confidence": 0.95,
-                "method": "rule-based",
-                "matched_keywords": [kw for kw in spam_keywords if kw in text]
-            }
+        scores = {intent: 0.0 for intent in self.rules}
+        scores["general"] = 0.1  # Base score
         
-        # Academic detection
-        academic_keywords = [
-            "professor", "assignment", "exam", "grade", "course",
-            "class", "homework", "lecture", "syllabus", "office hours"
-        ]
-        if sender.endswith(".edu") or any(keyword in text for keyword in academic_keywords):
-            confidence = 0.85 if sender.endswith(".edu") else 0.75
-            return {
-                "intent": "academic",
-                "confidence": confidence,
-                "method": "rule-based",
-                "matched_keywords": [kw for kw in academic_keywords if kw in text]
-            }
+        # Check sender domain
+        if "edu" in sender:
+            scores["academic"] += 0.3
+        if "linkedin" in sender or "recruiting" in sender:
+            scores["internship"] += 0.3
+            
+        # Check keywords
+        for intent, patterns in self.rules.items():
+            for pattern in patterns:
+                matches = re.findall(pattern, text)
+                if matches:
+                    scores[intent] += len(matches) * 0.2
+                    
+        # Normalize scores (simple soft-max like)
+        total = sum(scores.values())
+        if total > 0:
+            for k in scores:
+                scores[k] /= total
         
-        # Internship/Job detection
-        job_keywords = [
-            "interview", "position", "application", "resume", "cv",
-            "hiring", "job", "opportunity", "candidate", "recruiter"
-        ]
-        if any(keyword in text for keyword in job_keywords) or "hr" in sender:
-            return {
-                "intent": "internship",
-                "confidence": 0.80,
-                "method": "rule-based",
-                "matched_keywords": [kw for kw in job_keywords if kw in text]
-            }
+        # Get best intent
+        best_intent = max(scores, key=scores.get)
+        confidence = scores[best_intent]
         
-        # Meeting detection
-        meeting_keywords = [
-            "meeting", "schedule", "calendar", "available", "appointment",
-            "call", "zoom", "teams", "conference", "sync"
-        ]
-        if any(keyword in text for keyword in meeting_keywords):
-            return {
-                "intent": "meeting",
-                "confidence": 0.75,
-                "method": "rule-based",
-                "matched_keywords": [kw for kw in meeting_keywords if kw in text]
-            }
-        
-        # Support detection
-        support_keywords = [
-            "help", "issue", "problem", "support", "assistance",
-            "question", "how to", "not working", "error"
-        ]
-        if any(keyword in text for keyword in support_keywords):
-            return {
-                "intent": "support",
-                "confidence": 0.70,
-                "method": "rule-based",
-                "matched_keywords": [kw for kw in support_keywords if kw in text]
-            }
-        
-        # Complaint detection
-        complaint_keywords = [
-            "disappointed", "unacceptable", "terrible", "worst",
-            "complaint", "unsatisfied", "refund", "cancel"
-        ]
-        if any(keyword in text for keyword in complaint_keywords):
-            return {
-                "intent": "complaint",
-                "confidence": 0.75,
-                "method": "rule-based",
-                "matched_keywords": [kw for kw in complaint_keywords if kw in text]
-            }
-        
-        # Default: general
         return {
-            "intent": "general",
-            "confidence": 0.60,
-            "method": "rule-based",
-            "matched_keywords": []
+            "intent": best_intent,
+            "confidence": min(confidence, 1.0),
+            "method": "rules",
+            "scores": scores
         }
     
-    def _load_model(self, model_path: str):
-        """
-        Load trained BERT model.
-        
-        Args:
-            model_path: Path to model checkpoint
-        """
-        try:
-            from transformers import AutoModelForSequenceClassification, AutoTokenizer
-            
-            self.model = AutoModelForSequenceClassification.from_pretrained(model_path)
-            self.tokenizer = AutoTokenizer.from_pretrained(model_path)
-            self.model.eval()
-            
-            print(f"Loaded model from {model_path}")
-        except Exception as e:
-            print(f"Failed to load model: {e}")
-            print("Falling back to rule-based classification")
-            self.model = None
-            self.tokenizer = None
-    
-    def batch_classify(self, emails: List[Dict[str, str]]) -> List[Dict[str, any]]:
-        """
-        Classify multiple emails in batch.
-        
-        Args:
-            emails: List of preprocessed emails
-            
-        Returns:
-            List of classification results
-        """
+    def batch_classify(self, emails: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Classify batch of emails."""
         return [self.classify(email) for email in emails]
-
 
 # Example usage
 if __name__ == "__main__":
     classifier = IntentClassifier(use_rules=True)
     
-    # Test emails
-    test_emails = [
-        {
-            "sender": "professor@university.edu",
-            "subject": "Assignment Deadline",
-            "body": "The assignment is due next week."
-        },
-        {
-            "sender": "hr@company.com",
-            "subject": "Interview Invitation",
-            "body": "We would like to invite you for an interview."
-        },
-        {
-            "sender": "marketing@shop.com",
-            "subject": "50% Discount - Limited Offer!",
-            "body": "Click here to claim your discount. Unsubscribe anytime."
-        },
-        {
-            "sender": "colleague@work.com",
-            "subject": "Quick sync",
-            "body": "Are you available for a meeting tomorrow?"
-        }
-    ]
+    test_email = {
+        "sender": "prof@university.edu",
+        "subject": "Assignment",
+        "combined_text": "Please submit your assignment by Friday.",
+        "body": "Please submit your assignment by Friday."
+    }
     
-    for email in test_emails:
-        result = classifier.classify(email)
-        print(f"\nEmail: {email['subject']}")
-        print(f"Intent: {result['intent']} (confidence: {result['confidence']:.2f})")
-        print(f"Method: {result['method']}")
+    print(classifier.classify(test_email))

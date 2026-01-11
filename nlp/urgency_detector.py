@@ -2,12 +2,22 @@
 Enhanced Urgency Detector
 
 Detects email urgency using temporal analysis and keyword detection.
+Uses dateutil for robust date parsing.
 """
 
 import re
-from typing import Dict, List, Optional
+import logging
+from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
+from src.config_loader import config
 
+try:
+    from dateutil import parser as date_parser
+    HAS_DATEUTIL = True
+except ImportError:
+    HAS_DATEUTIL = False
+
+logger = logging.getLogger(__name__)
 
 class UrgencyDetector:
     """
@@ -23,30 +33,21 @@ class UrgencyDetector:
     def __init__(self):
         # Urgency keywords by level
         self.critical_keywords = [
-            "urgent", "asap", "immediately", "emergency", "critical",
-            "right now", "today", "within hours"
+            r'\b(urgent|asap|immediately|emergency|critical|right now|within hours)\b'
         ]
         
         self.high_keywords = [
-            "soon", "quickly", "tomorrow", "by tomorrow", "this week",
-            "deadline", "due", "time-sensitive"
+            r'\b(soon|quickly|tomorrow|by tomorrow|this week|deadline|due|time-sensitive|priority)\b'
         ]
         
         self.medium_keywords = [
-            "next week", "upcoming", "soon", "when you can",
-            "at your convenience"
+            r'\b(next week|upcoming|soon|when you can|at your convenience)\b'
         ]
         
-        # Temporal patterns
-        self.deadline_patterns = [
-            r'deadline\s+(?:is\s+)?(?:on\s+)?(\w+\s+\d+)',
-            r'due\s+(?:on\s+)?(\w+\s+\d+)',
-            r'by\s+(\w+\s+\d+)',
-            r'before\s+(\w+\s+\d+)',
-            r'(?:today|tomorrow|tonight)',
-        ]
-    
-    def detect(self, email: Dict[str, str]) -> Dict[str, any]:
+        # VIP Senders (mock - real would come from user config)
+        self.vip_senders = ["boss@company.com", "ceo@company.com"]
+
+    def detect(self, email: Dict[str, Any]) -> Dict[str, Any]:
         """
         Detect urgency level.
         
@@ -56,152 +57,126 @@ class UrgencyDetector:
         Returns:
             Urgency result with level and confidence
         """
-        text = (email.get("subject", "") + " " + email.get("body", "")).lower()
+        text = email.get("combined_text", "").lower()
+        sender = email.get("sender", "").lower()
         
-        # Check for critical urgency
-        critical_matches = [kw for kw in self.critical_keywords if kw in text]
-        if critical_matches:
+        # 1. Check VIP
+        if any(vip in sender for vip in self.vip_senders):
             return {
-                "urgency": "critical",
-                "confidence": 0.95,
-                "reasoning": f"Contains critical keywords: {', '.join(critical_matches)}",
-                "matched_keywords": critical_matches
+                "urgency": "high",
+                "confidence": 0.9,
+                "reasoning": "VIP sender detected"
             }
-        
-        # Check for deadline mentions
+            
+        # 2. Check for Clean Deadline
         deadline_info = self._extract_deadline(text)
         if deadline_info:
             days_until = deadline_info.get("days_until", 999)
             
-            if days_until <= 1:
+            if days_until <= 0: # Today/Overdue
                 return {
                     "urgency": "critical",
-                    "confidence": 0.90,
-                    "reasoning": f"Deadline within {days_until} day(s)",
-                    "deadline": deadline_info.get("deadline_text")
+                    "confidence": 0.95,
+                    "reasoning": f"Deadline is today/overdue: {deadline_info.get('deadline_text')}",
+                    "deadline": deadline_info
                 }
-            elif days_until <= 3:
+            elif days_until <= 2:
                 return {
                     "urgency": "high",
                     "confidence": 0.85,
                     "reasoning": f"Deadline in {days_until} days",
-                    "deadline": deadline_info.get("deadline_text")
+                    "deadline": deadline_info
                 }
             elif days_until <= 7:
                 return {
                     "urgency": "medium",
                     "confidence": 0.75,
                     "reasoning": f"Deadline in {days_until} days",
-                    "deadline": deadline_info.get("deadline_text")
+                    "deadline": deadline_info
                 }
         
-        # Check for high urgency keywords
-        high_matches = [kw for kw in self.high_keywords if kw in text]
-        if high_matches:
-            return {
-                "urgency": "high",
-                "confidence": 0.80,
-                "reasoning": f"Contains high-urgency keywords: {', '.join(high_matches)}",
-                "matched_keywords": high_matches
-            }
+        # 3. Check Keywords
+        # Critical
+        if self._check_keywords(text, self.critical_keywords):
+            return {"urgency": "critical", "confidence": 0.85, "reasoning": "Critical keywords found"}
+            
+        # High
+        if self._check_keywords(text, self.high_keywords):
+            return {"urgency": "high", "confidence": 0.75, "reasoning": "High urgency keywords found"}
+            
+        # Medium
+        if self._check_keywords(text, self.medium_keywords):
+            return {"urgency": "medium", "confidence": 0.65, "reasoning": "Medium urgency keywords found"}
         
-        # Check for medium urgency keywords
-        medium_matches = [kw for kw in self.medium_keywords if kw in text]
-        if medium_matches:
-            return {
-                "urgency": "medium",
-                "confidence": 0.70,
-                "reasoning": f"Contains medium-urgency keywords: {', '.join(medium_matches)}",
-                "matched_keywords": medium_matches
-            }
-        
-        # Default: low urgency
-        return {
-            "urgency": "low",
-            "confidence": 0.65,
-            "reasoning": "No urgency indicators found",
-            "matched_keywords": []
-        }
-    
-    def _extract_deadline(self, text: str) -> Optional[Dict[str, any]]:
+        # Default
+        return {"urgency": "low", "confidence": 0.60, "reasoning": "No urgency indicators"}
+
+    def _check_keywords(self, text: str, patterns: List[str]) -> bool:
+        """Check if any compiled regex pattern matches."""
+        for pattern in patterns:
+            if re.search(pattern, text):
+                return True
+        return False
+
+    def _extract_deadline(self, text: str) -> Optional[Dict[str, Any]]:
         """
         Extract deadline information from text.
-        
-        Args:
-            text: Email text
-            
-        Returns:
-            Deadline info or None
+        Returns closest future date found near keyword 'deadline'/'due'.
         """
-        for pattern in self.deadline_patterns:
-            match = re.search(pattern, text, re.IGNORECASE)
-            if match:
-                deadline_text = match.group(0)
-                
-                # Try to parse relative dates
-                if "today" in deadline_text.lower():
-                    return {
-                        "deadline_text": deadline_text,
-                        "days_until": 0
-                    }
-                elif "tomorrow" in deadline_text.lower():
-                    return {
-                        "deadline_text": deadline_text,
-                        "days_until": 1
-                    }
-                elif "tonight" in deadline_text.lower():
-                    return {
-                        "deadline_text": deadline_text,
-                        "days_until": 0
-                    }
-                
-                # Try to parse specific dates (simplified)
-                # In production, use dateutil.parser for robust parsing
-                try:
-                    if match.groups():
-                        date_str = match.group(1)
-                        # Simplified: assume dates are within next 30 days
-                        # Real implementation would parse actual dates
-                        return {
-                            "deadline_text": deadline_text,
-                            "days_until": 7  # Placeholder
-                        }
-                except:
-                    pass
-                
-                return {
-                    "deadline_text": deadline_text,
-                    "days_until": 7  # Default assumption
-                }
+        # Look for context window around "due" or "deadline"
+        # Simple extraction logic
         
+        matches = re.finditer(r'\b(due|deadline|by|until)\b.{0,30}', text)
+        
+        today = datetime.now()
+        closest_date = None
+        min_diff = 999
+        matched_text = ""
+        
+        for match in matches:
+            snippet = match.group(0)
+            # Try parsing date from snippet
+            try:
+                # dateutil parser fuzzy=True matches dates in string
+                if HAS_DATEUTIL:
+                    dt = date_parser.parse(snippet, fuzzy=True, default=today)
+                else:
+                    # Very simple fallback: only detect known keywords for relative dates
+                    dt = today
+                    snippet_lower = snippet.lower()
+                    if "tomorrow" in snippet_lower:
+                        dt = today + timedelta(days=1)
+                    elif "next week" in snippet_lower:
+                        dt = today + timedelta(days=7)
+                    else:
+                        continue # Cannot parse strict dates without dateutil
+                
+                # Filter out past dates if just 'timestamp', but keep if explicitly date
+                # Simple check: ignore if it's just 'today's time'
+                if dt.date() == today.date() and dt.year == today.year:
+                     # Check if it actually parsed a date or just defaulted
+                     # If snippet doesn't contain date info, fuzzy might return default
+                     pass 
+                
+                diff = (dt - today).days
+                if -1 <= diff < min_diff:  # Allow -1 for "yesterday" context or slight offsets
+                    # Only consider it if it looks like a future/near date
+                    min_diff = diff
+                    closest_date = dt
+                    matched_text = snippet
+            except:
+                continue
+                
+        if closest_date:
+            return {
+                "deadline_text": matched_text,
+                "date": closest_date,
+                "days_until": max(0, min_diff)
+            }
+            
         return None
-
 
 # Example usage
 if __name__ == "__main__":
     detector = UrgencyDetector()
-    
-    test_emails = [
-        {
-            "subject": "URGENT: Server Down",
-            "body": "The production server is down. Need immediate attention!"
-        },
-        {
-            "subject": "Assignment Due Tomorrow",
-            "body": "Just a reminder that the assignment is due by tomorrow."
-        },
-        {
-            "subject": "Meeting Next Week",
-            "body": "Let's schedule a meeting for next week when you're available."
-        },
-        {
-            "subject": "Newsletter",
-            "body": "Here's our monthly newsletter with updates."
-        }
-    ]
-    
-    for email in test_emails:
-        result = detector.detect(email)
-        print(f"\nEmail: {email['subject']}")
-        print(f"Urgency: {result['urgency']} (confidence: {result['confidence']:.2f})")
-        print(f"Reasoning: {result['reasoning']}")
+    print("Urgency Detector initialized.")

@@ -1,0 +1,46 @@
+models:
+  intent_classifier:
+    name: "distilbert-base-uncased"
+    path: "models/intent_classifier"
+    use_rules_fallback: true
+  
+  sentiment_analyzer:
+    name: "distilbert-base-uncased-finetuned-sst-2-english"
+    path: "models/sentiment_analyzer"
+    use_rules_fallback: true
+  
+  text_generator:
+    name: "t5-small"
+    path:models/text_generator"
+    temperature: 0.7
+    top_p: 0.9
+    max_length: 300
+
+  embeddings:
+    name: "all-MiniLM-L6-v2"
+    path: "models/embeddings"
+
+thresholds:
+  confidence:
+    academic: 0.80
+    internship: 0.75
+    meeting: 0.70
+    support: 0.85
+    spam: 0.90
+    default: 0.75
+  
+  urgency:
+    critical: 0.90
+    high: 0.80
+    medium: 0.70
+    low: 0.60
+
+generation:
+  strategy: "auto"  # auto, template, llm, rag
+  fallback_chain: ["rag+llm", "llm", "template"]
+  
+paths:
+  data_dir: "data"
+  models_dir: "models"
+  logs_dir: "logs"
+  templates_dir: "src/templates"
