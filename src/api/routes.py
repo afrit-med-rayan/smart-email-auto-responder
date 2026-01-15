@@ -4,10 +4,52 @@ from src.api.models import (
     GenerationResponse, ValidationRequest, ValidationResponse
 )
 from src.api.auth import get_api_key
-from src.api.dependencies import get_email_pipeline
+from src.api.dependencies import get_email_pipeline, get_gmail_client
 from src.pipeline import EmailPipeline
+from src.integration.gmail_client import GmailClient
+from typing import List
 
 router = APIRouter(dependencies=[Depends(get_api_key)])
+
+@router.get("/emails", response_model=List[EmailResponse])
+async def list_emails(
+    gmail_client: GmailClient = Depends(get_gmail_client),
+    pipeline: EmailPipeline = Depends(get_email_pipeline)
+):
+    # Fetch from Gmail
+    raw_emails = gmail_client.list_unread_emails(max_results=10)
+    
+    response_list = []
+    for raw in raw_emails:
+        # We need to process them to get classification
+        # Ideally this happens in background, but for now do it on fly (slow)
+        
+        # Parse content (Gmail API returns complex nested payload)
+        parsed = pipeline.parser.parse_gmail_message(raw)
+        processed = pipeline.preprocessor.preprocess(parsed)
+        
+        # Classify
+        intent = pipeline.intent_classifier.classify(processed)
+        urgency = pipeline.urgency_detector.detect(processed)
+        
+        # Generate Draft (optional, maybe only on demand, but UI expects it)
+        draft_res = pipeline.generator.generate_draft(
+             processed, intent["intent"], urgency["urgency"]
+        )
+        
+        response_list.append(EmailResponse(
+            id=raw.get("id"),
+            subject=parsed.get("subject", "No Subject"),
+            sender=parsed.get("sender", "Unknown"),
+            body=parsed.get("body", ""),
+            classification={
+                "intent": intent["intent"],
+                "urgency": urgency["urgency"]
+            },
+            generatedDraft=draft_res.get("draft")
+        ))
+        
+    return response_list
 
 @router.post("/classify", response_model=ClassificationResponse)
 async def classify_email(

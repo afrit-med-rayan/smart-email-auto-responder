@@ -13,6 +13,14 @@ class ClassificationResponse(BaseModel):
     sentiment: str
     confidence: float
 
+class EmailResponse(BaseModel):
+    id: str
+    subject: str
+    sender: str
+    body: str
+    classification: Optional[Dict[str, Any]] = None
+    generatedDraft: Optional[str] = None
+
 class GenerationRequest(BaseModel):
     intent: str
     sender_name: Optional[str] = "Sender"

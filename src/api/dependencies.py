@@ -9,3 +9,9 @@ logger = logging.getLogger(__name__)
 def get_email_pipeline() -> EmailPipeline:
     logger.info("Loading EmailPipeline instance for API...")
     return EmailPipeline()
+
+@lru_cache()
+def get_gmail_client():
+    from src.integration.gmail_client import GmailClient
+    logger.info("Loading GmailClient for API...")
+    return GmailClient()
