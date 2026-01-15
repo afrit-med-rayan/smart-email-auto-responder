@@ -39,3 +39,8 @@ onnxscript>=0.1.0
 
 rouge_score>=0.1.2
 cn_clips>=1.0.0
+
+# API Server
+fastapi>=0.100.0
+uvicorn>=0.23.0
+python-multipart>=0.0.6
