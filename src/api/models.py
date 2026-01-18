@@ -14,7 +14,7 @@ class ClassificationResponse(BaseModel):
     confidence: float
 
 class EmailResponse(BaseModel):
-    id: str
+    id: int  # Changed from str to int to match database ID
     subject: str
     sender: str
     body: str
