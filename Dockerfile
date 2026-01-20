@@ -1,0 +1,71 @@
+# Multi-stage Dockerfile for Smart Email Auto-Responder Backend
+# Supports both GPU (CUDA) and CPU inference
+
+# ============================================
+# Stage 1: Builder - Install dependencies
+# ============================================
+FROM python:3.10-slim as builder
+
+WORKDIR /build
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Download spaCy model
+RUN python -m spacy download en_core_web_sm
+
+# ============================================
+# Stage 2: Runtime - Production image
+# ============================================
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install runtime dependencies only
+RUN apt-get update && apt-get install -y \
+    libgomp1 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy Python packages from builder
+COPY --from=builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Create non-root user for security
+RUN useradd -m -u 1000 appuser && \
+    mkdir -p /app/logs /app/models /app/data && \
+    chown -R appuser:appuser /app
+
+# Copy application code
+COPY --chown=appuser:appuser . .
+
+# Switch to non-root user
+USER appuser
+
+# Environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    MODEL_CACHE_DIR=/app/models \
+    LOG_DIR=/app/logs \
+    INFERENCE_DEVICE=cpu
+
+# Expose API port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Start FastAPI server with Uvicorn
+CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
