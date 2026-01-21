@@ -36,7 +36,7 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  backend:
+  model-service:
     deploy:
       resources:
         limits:
@@ -46,8 +46,7 @@ services:
           cpus: '2'
           memory: 2G
     environment:
-      - LOG_LEVEL=WARNING
-      - MODEL_QUANTIZATION=8bit
+      - MODEL_NAME=distilbert-base-uncased
       - WORKERS=4
     restart: always
     logging:
@@ -55,6 +54,25 @@ services:
       options:
         max-size: "50m"
         max-file: "5"
+
+  backend:
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+    environment:
+      - LOG_LEVEL=WARNING
+      - WORKERS=4
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
 
   frontend:
     deploy:
