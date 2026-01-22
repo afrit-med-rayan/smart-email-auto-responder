@@ -271,8 +271,22 @@ def get_model_loader(
     """Get or create the global model loader instance."""
     global _global_loader
     
+    # Load defaults from config if not specified/overridden
     if _global_loader is None:
-        _global_loader = ModelLoader(models_dir, device, quantization)
+        from src.config_loader import config
+        
+        # Use config defaults if arguments match the default function signature (which are effectively placeholders here)
+        # Note: In a cleaner design, we might pass None as defaults to distinguish.
+        # Here we'll just check if the global config has values and use them if we are creating the loader.
+        
+        cfg_device = config.inference.device if config.inference else "auto"
+        cfg_quant = config.inference.quantization if config.inference else "none"
+        
+        # Priority: Argument > Config > Default
+        final_device = device if device != "auto" else (cfg_device or "auto")
+        final_quant = quantization if quantization != "none" else (cfg_quant or "none")
+        
+        _global_loader = ModelLoader(models_dir, final_device, final_quant)
     
     return _global_loader
 

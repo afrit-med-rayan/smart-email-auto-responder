@@ -91,6 +91,11 @@ DEFAULT_CONFIG = {
         "models_dir": "models",
         "logs_dir": "logs", 
         "templates_dir": "src/templates"
+    },
+    "inference": {
+        "device": "auto",  # auto, cpu, cuda
+        "quantization": "none",  # none, 8bit, 4bit
+        "onnx_enabled": False
     }
 }
 

@@ -54,6 +54,12 @@ class ModelQuantizer:
                     load_in_8bit=True,
                     device_map="auto"
                 )
+                # Save quantized model
+                os.makedirs(output_path, exist_ok=True)
+                model.save_pretrained(output_path)
+                tokenizer = AutoTokenizer.from_pretrained(model_path)
+                tokenizer.save_pretrained(output_path)
+                
             elif quantization == "4bit":
                 from transformers import BitsAndBytesConfig
                 
@@ -69,16 +75,58 @@ class ModelQuantizer:
                     quantization_config=quantization_config,
                     device_map="auto"
                 )
+                # Save quantized model
+                os.makedirs(output_path, exist_ok=True)
+                model.save_pretrained(output_path)
+                tokenizer = AutoTokenizer.from_pretrained(model_path)
+                tokenizer.save_pretrained(output_path)
+
+            elif quantization == "onnx-int8":
+                from onnxruntime.quantization import quantize_dynamic, QuantType
+                
+                # First ensure base ONNX exists, if not, export it
+                # For simplicity, we assume we need to export it first or it exists
+                # This basic implementation exports it first using optimum or torch
+                
+                logger.info("Exporting to ONNX before quantization...")
+                try:
+                    from optimum.onnxruntime import ORTModelForSequenceClassification
+                    # Load model and export
+                    ort_model = ORTModelForSequenceClassification.from_pretrained(
+                        model_path,
+                        export=True
+                    )
+                    
+                    # Save full precision ONNX temporarily
+                    temp_onnx_dir = Path(output_path) / "temp_full_precision"
+                    ort_model.save_pretrained(temp_onnx_dir)
+                    tokenizer = AutoTokenizer.from_pretrained(model_path)
+                    tokenizer.save_pretrained(temp_onnx_dir)
+                    
+                    # Quantize
+                    logger.info("Quantizing ONNX model to INT8...")
+                    model_file = temp_onnx_dir / "model.onnx"
+                    output_model_file = Path(output_path) / "model_quantized.onnx"
+                    os.makedirs(output_path, exist_ok=True)
+                    
+                    quantize_dynamic(
+                        model_input=model_file,
+                        model_output=output_model_file,
+                        weight_type=QuantType.QUInt8
+                    )
+                    
+                    tokenizer.save_pretrained(output_path)
+                    
+                    # Cleanup temp
+                    import shutil
+                    shutil.rmtree(temp_onnx_dir, ignore_errors=True)
+                    
+                except ImportError:
+                     logger.error("optimum or onnxruntime not installed. Please install optimum[onnxruntime].")
+                     raise
+                
             else:
                 raise ValueError(f"Unsupported quantization level: {quantization}")
-            
-            # Save quantized model
-            os.makedirs(output_path, exist_ok=True)
-            model.save_pretrained(output_path)
-            
-            # Copy tokenizer
-            tokenizer = AutoTokenizer.from_pretrained(model_path)
-            tokenizer.save_pretrained(output_path)
             
             logger.info(f"Successfully quantized model to {output_path}")
             return True
@@ -162,17 +210,20 @@ class ModelQuantizer:
         original_path = self.models_dir / model_name
         quantized_8bit_path = self.models_dir / f"{model_name}_8bit"
         quantized_4bit_path = self.models_dir / f"{model_name}_4bit"
+        quantized_onnx_path = self.models_dir / f"{model_name}_onnx-int8"
         
         original_size = self.get_model_size(str(original_path))
         size_8bit = self.get_model_size(str(quantized_8bit_path))
         size_4bit = self.get_model_size(str(quantized_4bit_path))
+        size_onnx = self.get_model_size(str(quantized_onnx_path))
         
         return {
             "original": f"{original_size:.2f} MB",
             "8bit": f"{size_8bit:.2f} MB" if size_8bit > 0 else "N/A",
             "4bit": f"{size_4bit:.2f} MB" if size_4bit > 0 else "N/A",
+            "onnx-int8": f"{size_onnx:.2f} MB" if size_onnx > 0 else "N/A", 
             "8bit_reduction": f"{((original_size - size_8bit) / original_size * 100):.1f}%" if size_8bit > 0 else "N/A",
-            "4bit_reduction": f"{((original_size - size_4bit) / original_size * 100):.1f}%" if size_4bit > 0 else "N/A"
+            "onnx_reduction": f"{((original_size - size_onnx) / original_size * 100):.1f}%" if size_onnx > 0 else "N/A"
         }
 
 
