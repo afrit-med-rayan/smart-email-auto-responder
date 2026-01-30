@@ -4,11 +4,13 @@ from typing import Dict, Any, List
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from src.model_server.inference import InferenceEngine
+from src.logging_config import setup_logging
 
 # Setup Logging
-logging.basicConfig(level=logging.INFO)
+setup_logging("ModelServer", log_level="INFO")
 logger = logging.getLogger("ModelServer")
 
 app = FastAPI(
@@ -16,6 +18,9 @@ app = FastAPI(
     description="Dedicated service for AI model inference.",
     version="1.0.0"
 )
+
+# Setup Metrics
+Instrumentator().instrument(app).expose(app)
 
 # Global variables for model engine
 engine: InferenceEngine = None
