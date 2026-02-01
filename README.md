@@ -117,7 +117,10 @@ Access the dashboard at `http://localhost:8501` and the API docs at `http://loca
 
 ### Evaluation Dashboard
 Visualize model performance metrics including F1-score, BLEU score, and system latency.
-![Dashboard](docs/media/dashboard.png)
+
+![Dashboard Overview](docs/media/dashboard_1.png)
+![Dashboard Metrics](docs/media/dashboard_2.png)
+![Dashboard Details](docs/media/dashboard_3.png)
 
 ---
 
