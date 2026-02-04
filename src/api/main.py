@@ -1,4 +1,5 @@
 import logging
+from typing import Dict, Any
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
@@ -31,7 +32,7 @@ app.add_middleware(
 app.include_router(router, prefix="/api/v1", tags=["v1"])
 
 @app.get("/health")
-async def health_check():
+async def health_check() -> Dict[str, str]:
     """
     Health check endpoint returning status of services.
     """

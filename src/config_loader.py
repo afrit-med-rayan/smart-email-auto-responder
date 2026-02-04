@@ -22,27 +22,29 @@ except ImportError:
     pass
 
 class SimpleConfig:
-    def __init__(self, **kwargs):
+    """Simple configuration object with nested attribute access."""
+    
+    def __init__(self, **kwargs: Any) -> None:
         for k, v in kwargs.items():
             if isinstance(v, dict):
                 setattr(self, k, SimpleConfig(**v))
             else:
                 setattr(self, k, v)
     
-    def get(self, key, default=None):
+    def get(self, key: str, default: Optional[Any] = None) -> Any:
         return getattr(self, key, default)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: str) -> Any:
         return getattr(self, key)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         # Allow accessing missing attributes as None or empty dict if needed,
         # but for config strictness usually we want failures or defaults.
         # For this simple mock, let's return None or empty dict for nested
         return None
 
 # Default Configuration Dictionary
-DEFAULT_CONFIG = {
+DEFAULT_CONFIG: Dict[str, Any] = {
     "models": {
         "intent_classifier": {
             "name": "distilbert-base-uncased",
@@ -99,22 +101,22 @@ DEFAULT_CONFIG = {
     }
 }
 
-def load_config(config_path: str = "config.yaml") -> Any:
+def load_config(config_path: str = "config.yaml") -> SimpleConfig:
     """
     Load configuration from YAML file and environment variables.
     Fallback to defaults if dependencies missing.
     """
-    yaml_config = {}
+    yaml_config: Dict[str, Any] = {}
     
     if HAS_YAML and os.path.exists(config_path):
         try:
             with open(config_path, "r", encoding="utf-8") as f:
-                yaml_config = yaml.safe_load(f)
+                yaml_config = yaml.safe_load(f) or {}
         except Exception as e:
             print(f"Warning: Failed to parse config file: {e}")
             
     # Load env vars
-    env_config = {
+    env_config: Dict[str, Optional[str]] = {
         "gmail_client_id": os.getenv("GMAIL_CLIENT_ID"),
         "gmail_client_secret": os.getenv("GMAIL_CLIENT_SECRET"),
         "telegram_bot_token": os.getenv("TELEGRAM_BOT_TOKEN"),
@@ -125,7 +127,7 @@ def load_config(config_path: str = "config.yaml") -> Any:
     }
     
     # Merge with default config (deep merge simplified)
-    config_data = DEFAULT_CONFIG.copy()
+    config_data: Dict[str, Any] = DEFAULT_CONFIG.copy()
     
     # Update with yaml/env
     # Note: proper deep merge needed for production, for now overwriting top keys
@@ -134,7 +136,7 @@ def load_config(config_path: str = "config.yaml") -> Any:
         config_data.update(yaml_config)
     
     # Append env vars as top level attributes
-    config_data.update(env_config)
+    config_data.update(env_config)  # type: ignore[arg-type]
     
     return SimpleConfig(**config_data)
 

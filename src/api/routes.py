@@ -11,7 +11,7 @@ from src.database import get_db
 from src.cache import get_redis_client, RedisClient
 from src.pipeline import EmailPipeline
 from src.integration.gmail_client import GmailClient
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 
 router = APIRouter(dependencies=[Depends(get_api_key)])
@@ -25,7 +25,7 @@ async def list_emails(
     status: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     redis: RedisClient = Depends(get_redis_client),
-):
+) -> List[EmailResponse]:
     """
     List emails with optional filtering and pagination.
     
@@ -47,9 +47,9 @@ async def list_emails(
     )
     
     # Transform to response format
-    response_list = []
+    response_list: List[EmailResponse] = []
     for email in emails:
-        classification_data = None
+        classification_data: Optional[Dict[str, Any]] = None
         if email.classification:
             classification_data = {
                 "intent": email.classification.intent,
@@ -81,12 +81,12 @@ async def classify_email(
     pipeline: EmailPipeline = Depends(get_email_pipeline),
     db: AsyncSession = Depends(get_db),
     redis: RedisClient = Depends(get_redis_client),
-):
+) -> ClassificationResponse:
     """
     Classify an email and optionally cache the result.
     """
     # Construct dict format expected by internal tools
-    email_data = {
+    email_data: Dict[str, Any] = {
         "subject": request.subject,
         "body": request.body,
         "sender": request.sender,
@@ -101,7 +101,7 @@ async def classify_email(
     sentiment_res = pipeline.sentiment_analyzer.analyze(processed_email)
     
     # Calculate an aggregate confidence
-    avg_confidence = (
+    avg_confidence: float = (
         intent_res.get("confidence", 0) + 
         urgency_res.get("confidence", 0) + 
         sentiment_res.get("confidence", 0)
@@ -118,10 +118,10 @@ async def classify_email(
 async def generate_draft(
     request: GenerationRequest,
     pipeline: EmailPipeline = Depends(get_email_pipeline)
-):
+) -> GenerationResponse:
     """Generate a draft response for an email."""
     # Mock processed email structure for generator
-    processed_email = {
+    processed_email: Dict[str, Any] = {
         "combined_text": request.email_body, 
         "sender": request.sender_name,
         "subject": "Re: " + request.context.get("subject", "") if request.context else ""
@@ -139,7 +139,7 @@ async def generate_draft(
 async def validate_draft(
     request: ValidationRequest,
     pipeline: EmailPipeline = Depends(get_email_pipeline)
-):
+) -> ValidationResponse:
     """Validate a draft response."""
     # Use Validator - SafetyFilter and basic Validator logic
     safety_res = pipeline.safety.check(request.draft)
