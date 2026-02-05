@@ -1,0 +1,17 @@
+[bandit]
+# Exclude paths
+exclude_dirs = /venv/,/tests/,/.venv/,/.mypy_cache/,/.pytest_cache/,/node_modules/,/frontend/
+
+# Test IDs to skip (if needed, currently none)
+skips = 
+
+# Severity level (LOW, MEDIUM, HIGH)
+# Only report issues of medium severity or higher
+severity = MEDIUM
+
+# Confidence level (LOW, MEDIUM, HIGH)
+# Only report issues with medium confidence or higher
+confidence = MEDIUM
+
+# Recursively scan directories
+recursive = True

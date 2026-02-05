@@ -1,4 +1,5 @@
 import logging
+import os
 from typing import Dict, Any
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,9 +7,12 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from src.api.routes import router
 from src.logging_config import setup_logging
 from src.database import check_db_health
+from src.middleware.logging_middleware import LoggingMiddleware
 
-# Setup Logging
-setup_logging("API", log_level="INFO")
+# Setup Logging with environment-based configuration
+environment = os.getenv("ENVIRONMENT", "development")
+log_level = os.getenv("LOG_LEVEL", "INFO")
+setup_logging("API", log_level=log_level, environment=environment)
 logger = logging.getLogger("API")
 
 app = FastAPI(
@@ -28,6 +32,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add logging middleware for request tracking
+app.add_middleware(LoggingMiddleware)
 
 app.include_router(router, prefix="/api/v1", tags=["v1"])
 

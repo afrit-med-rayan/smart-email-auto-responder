@@ -1,0 +1,16 @@
+security:
+  # Ignore specific vulnerabilities (add CVE IDs here if needed)
+  ignore-vulnerabilities:
+    # Example: 12345
+  
+  # Ignore unpinned requirements
+  ignore-unpinned-requirements: false
+  
+  # Continue on error
+  continue-on-error: false
+  
+  # Output format
+  output: screen
+  
+  # Severity threshold (low, medium, high, critical)
+  severity-threshold: medium

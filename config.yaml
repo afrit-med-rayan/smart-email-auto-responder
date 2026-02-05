@@ -11,7 +11,7 @@ models:
   
   text_generator:
     name: "t5-small"
-    path:models/text_generator"
+    path: "models/text_generator"
     temperature: 0.7
     top_p: 0.9
     max_length: 300

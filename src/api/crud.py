@@ -46,7 +46,7 @@ async def get_email_by_id(db: AsyncSession, email_id: int) -> Optional[Email]:
         .options(
             selectinload(Email.classification),
             selectinload(Email.draft),
-            selectinload(Email.metadata),
+            selectinload(Email.processing_metadata),
         )
         .where(Email.id == email_id)
     )
@@ -85,7 +85,7 @@ async def list_emails(
         .options(
             selectinload(Email.classification),
             selectinload(Email.draft),
-            selectinload(Email.metadata),
+            selectinload(Email.processing_metadata),
         )
         .order_by(desc(Email.timestamp))
     )

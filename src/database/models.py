@@ -29,7 +29,7 @@ class Email(Base):
     # Relationships
     classification = relationship("Classification", back_populates="email", uselist=False, cascade="all, delete-orphan")
     draft = relationship("Draft", back_populates="email", uselist=False, cascade="all, delete-orphan")
-    metadata = relationship("ProcessingMetadata", back_populates="email", uselist=False, cascade="all, delete-orphan")
+    processing_metadata = relationship("ProcessingMetadata", back_populates="email", uselist=False, cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<Email(id={self.id}, sender='{self.sender}', subject='{self.subject[:30]}...')>"
@@ -114,7 +114,7 @@ class ProcessingMetadata(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
     
     # Relationship
-    email = relationship("Email", back_populates="metadata")
+    email = relationship("Email", back_populates="processing_metadata")
     
     def __repr__(self):
         return f"<ProcessingMetadata(email_id={self.email_id}, status='{self.status}', action='{self.action}')>"
