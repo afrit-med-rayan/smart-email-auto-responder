@@ -136,6 +136,15 @@ pip install --upgrade package-name
 pip freeze > requirements.txt
 ```
 
+### Security Reports
+
+Automated security scans are performed periodically, and results are stored in the root directory:
+
+1.  **Bandit Report** (`bandit-report.json`): Contains results of static code analysis. Review this for hardcoded secrets, insecure function calls, and other Python-specific vulnerabilities.
+2.  **Safety Report** (`safety-report.json`): Lists known vulnerabilities in the project's dependencies.
+
+Review these reports after any major dependency update or code change.
+
 ## Dependency Management
 
 ### Pinning Versions

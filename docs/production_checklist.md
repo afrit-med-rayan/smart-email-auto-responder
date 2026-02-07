@@ -16,6 +16,10 @@ Before deploying to a live production environment, complete this checklist to en
 - [ ] **Firewall:**
     - [ ] Restrict access to database (5432) and Redis (6379) ports to internal network only (done by default in `docker-compose` if ports aren't exposed to host 0.0.0.0 unnecessarily).
     - [ ] Only expose ports 80/443 publically.
+- [ ] **Security Scanning:**
+    - [ ] Run `bandit -r src/` and review results.
+    - [ ] Run `safety check` and update vulnerable dependencies.
+    - [ ] Review `bandit-report.json` and `safety-report.json`.
 
 ## Performance
 
@@ -39,6 +43,10 @@ Before deploying to a live production environment, complete this checklist to en
 - [ ] **Logging:**
     - [ ] Configure log rotation (already in `docker-compose.prod.yml`) to prevent disk exhaustion.
     - [ ] Consider shipping logs to a centralized logging service (ELK, Splunk, etc.).
+- [ ] **Monitoring & Metrics:**
+    - [ ] Verify `/metrics` endpoint is accessible.
+    - [ ] Ensure Prometheus is scraping the API logs.
+    - [ ] Check that JSON logging is enabled and structured correctly.
 - [ ] **Backups:**
     - [ ] Schedule regular backups of the PostgreSQL database (`pg_dump`).
     - [ ] Backup configuration files (`.env`, `docker-compose*.yml`).

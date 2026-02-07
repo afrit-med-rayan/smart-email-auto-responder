@@ -258,6 +258,40 @@ topk(5, sum by (error_type) (errors_total))
 
 ---
 
+## 🪵 Observability Stack
+
+### Structured JSON Logging
+
+The application uses structured JSON logging for all services. This allows for easy parsing and analysis by log aggregation systems (e.g., ELK, Grafana Loki).
+
+**Log Format**:
+```json
+{
+  "timestamp": "2026-02-05T22:30:15.123Z",
+  "level": "INFO",
+  "name": "api.main",
+  "message": "Email processed successfully",
+  "email_id": "12345",
+  "duration_ms": 125,
+  "status": "success"
+}
+```
+
+**Key Benefits**:
+- **Searchable Attributes**: Filter logs by `level`, `component`, or custom fields like `email_id`.
+- **Consistency**: All services follow the same log structure.
+- **Machine Readable**: Optimized for automated monitoring and alerting.
+
+### Prometheus Integration
+
+All custom metrics described above are exposed via a `/metrics` endpoint compatible with Prometheus.
+
+- **Scrape Internal**: Default 15s.
+- **Port**: 8000 (Backend API).
+- **Endpoint**: `/metrics`.
+
+---
+
 ## Standard FastAPI Metrics
 
 The application also exposes standard HTTP metrics via `prometheus-fastapi-instrumentator`:

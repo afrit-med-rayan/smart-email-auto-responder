@@ -107,9 +107,21 @@ Access the dashboard at `http://localhost:8501` and the API docs at `http://loca
 
 - **[Architecture](docs/architecture.md)**: Detailed system design.
 - **[Deployment Guide](docs/deployment.md)**: Production setup instructions.
+- **[Security & Observability](docs/security.md)**: Security protocols and monitoring.
 - **[Design Decisions](docs/design_decisions.md)**: Trade-offs and technology choices.
 - **[Technical Blog](docs/technical_blog.md)**: "Building a Smart Email Auto-Responder".
 - **[Evaluation Report](EVALUATION.md)**: Latest model performance metrics.
+
+---
+
+## 🛡️ Security & Observability
+
+The system is built with production-grade security and monitoring in mind:
+
+- **Security Scanning**: Automated vulnerability checks using `Bandit` (code) and `Safety` (dependencies).
+- **Structured Logging**: JSON-formatted logs for easy ingestion and analysis.
+- **Observability Stack**: Real-time metrics exported via Prometheus and visualized in the dashboard.
+- **Human-in-the-Loop**: All AI-generated drafts require Telegram-based approval before sending.
 
 ---
 
